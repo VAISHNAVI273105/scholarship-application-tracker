@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register Application - Scholarship Tracker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <h1>Scholarship Section &middot; Application Tracker</h1>
+  <nav>
+    <a href="index.html">Register</a>
+    <a href="list.html">All Applications</a>
+    <a href="status.html">Check Status</a>
+  </nav>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Register a new scholarship application</h2>
+    <p class="hint">Every field is validated on the server. The suggested sanction amount is calculated on the server so every clerk and officer sees the same figure.</p>
+
+    <form id="regForm">
+      <div class="grid">
+        <div>
+          <label for="full_name">Student full name</label>
+          <input id="full_name" name="full_name" placeholder="e.g. Vaishnavi M" required>
+        </div>
+        <div>
+          <label for="roll_no">Roll number</label>
+          <input id="roll_no" name="roll_no" placeholder="e.g. 411724205053" required>
+        </div>
+        <div>
+          <label for="department">Department</label>
+          <input id="department" name="department" placeholder="e.g. IT" required>
+        </div>
+        <div>
+          <label for="year_of_study">Year of study</label>
+          <select id="year_of_study" name="year_of_study" required>
+            <option value="">Select</option>
+            <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+          </select>
+        </div>
+        <div>
+          <label for="email">Email</label>
+          <input id="email" type="email" name="email" placeholder="student@college.edu" required>
+        </div>
+        <div>
+          <label for="phone">Phone (10 digits)</label>
+          <input id="phone" name="phone" placeholder="9876543210" required>
+        </div>
+        <div>
+          <label for="family_income">Annual family income (Rs.)</label>
+          <input id="family_income" type="number" name="family_income" placeholder="e.g. 80000" required>
+        </div>
+        <div>
+          <label for="scholarship_type">Scholarship type</label>
+          <select id="scholarship_type" name="scholarship_type" required>
+            <option value="">Select</option>
+            <option>Merit</option>
+            <option>Means-cum-Merit</option>
+            <option>SC/ST</option>
+            <option>Minority</option>
+            <option>Differently-Abled</option>
+          </select>
+        </div>
+        <div>
+          <label for="amount_requested">Amount requested (Rs.)</label>
+          <input id="amount_requested" type="number" name="amount_requested" placeholder="e.g. 20000" required>
+        </div>
+      </div>
+      <br>
+      <button type="submit">Submit application</button>
+      <div id="msg" class="msg"></div>
+    </form>
+  </div>
+
+  <div class="card" id="docCard" style="display:none;">
+    <h2>Optional: attach a document photo for verification</h2>
+    <p class="hint">Runs the fine-tuned image classifier and stores the result against this application.</p>
+    <input type="file" id="docImage" accept="image/*">
+    <button type="button" id="verifyBtn" class="secondary">Verify document</button>
+    <div id="docResult" class="msg"></div>
+  </div>
+</main>
+
+<footer>Student Scholarship Application and Disbursement Tracker &middot; SIH 2026 Practical Assessment</footer>
+
+<script src="config.js"></script>
+<script>
+let lastApplicationId = null;
+
+document.getElementById("regForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("msg");
+  msg.className = "msg";
+  msg.innerHTML = "Submitting...";
+  msg.style.display = "block";
+
+  const payload = {
+    full_name: full_name.value,
+    roll_no: roll_no.value,
+    department: department.value,
+    year_of_study: year_of_study.value,
+    email: email.value,
+    phone: phone.value,
+    family_income: family_income.value,
+    scholarship_type: scholarship_type.value,
+    amount_requested: amount_requested.value,
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/api/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      msg.className = "msg success";
+      msg.innerHTML = `Application #${data.application_id} registered. Suggested sanction amount (server-calculated): <strong>Rs. ${data.suggested_sanction_amount}</strong>. Current stage: ${data.current_stage}.`;
+      lastApplicationId = data.application_id;
+      document.getElementById("docCard").style.display = "block";
+      e.target.reset();
+    } else {
+      msg.className = "msg error";
+      msg.innerHTML = "Could not save application:<ul>" + data.errors.map(x => `<li>${x}</li>`).join("") + "</ul>";
+    }
+  } catch (err) {
+    msg.className = "msg error";
+    msg.innerHTML = "Could not reach the server. Is the Flask backend running on " + API_BASE + "?";
+  }
+});
+
+document.getElementById("verifyBtn").addEventListener("click", async () => {
+  const fileInput = document.getElementById("docImage");
+  const result = document.getElementById("docResult");
+  if (!fileInput.files.length || !lastApplicationId) {
+    result.className = "msg error";
+    result.innerHTML = "Choose an image and submit an application first.";
+    return;
+  }
+  const fd = new FormData();
+  fd.append("image", fileInput.files[0]);
+  result.className = "msg";
+  result.innerHTML = "Analysing image...";
+  result.style.display = "block";
+
+  const res = await fetch(`${API_BASE}/api/applications/${lastApplicationId}/verify-document`, { method: "POST", body: fd });
+  const data = await res.json();
+  if (data.success) {
+    result.className = "msg success";
+    result.innerHTML = data.predicted_label
+      ? `Prediction: <strong>${data.predicted_label}</strong> (confidence ${(data.confidence*100).toFixed(1)}%)`
+      : `Low confidence (${(data.confidence*100).toFixed(1)}%) - no forced prediction. ${data.note}`;
+  } else {
+    result.className = "msg error";
+    result.innerHTML = data.errors.join(", ");
+  }
+});
+</script>
+</body>
+</html>

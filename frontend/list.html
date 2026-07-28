@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>All Applications - Scholarship Tracker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <h1>Scholarship Section &middot; Application Tracker</h1>
+  <nav>
+    <a href="index.html">Register</a>
+    <a href="list.html">All Applications</a>
+    <a href="status.html">Check Status</a>
+  </nav>
+</header>
+
+<main>
+  <div class="card">
+    <h2>All applications</h2>
+    <p class="hint">Ordered so the application stuck longest at its current stage appears first - that's what needs attention.</p>
+
+    <div class="toolbar">
+      <div>
+        <label for="search">Search (name or roll no.)</label>
+        <input id="search" placeholder="e.g. Vaishnavi">
+      </div>
+      <div>
+        <label for="stageFilter">Filter by stage</label>
+        <select id="stageFilter">
+          <option value="">All stages</option>
+          <option>Submitted</option>
+          <option>Document Verification</option>
+          <option>Section Review</option>
+          <option>Sanction</option>
+          <option>Disbursed</option>
+          <option>Rejected</option>
+        </select>
+      </div>
+      <div>
+        <label for="typeFilter">Filter by scholarship type</label>
+        <select id="typeFilter">
+          <option value="">All types</option>
+          <option>Merit</option>
+          <option>Means-cum-Merit</option>
+          <option>SC/ST</option>
+          <option>Minority</option>
+          <option>Differently-Abled</option>
+        </select>
+      </div>
+      <div><button id="applyBtn">Apply</button></div>
+    </div>
+
+    <div id="countTag" class="count-tag"></div>
+    <div id="tableWrap"></div>
+  </div>
+</main>
+
+<footer>Student Scholarship Application and Disbursement Tracker &middot; SIH 2026 Practical Assessment</footer>
+
+<script src="config.js"></script>
+<script>
+function stageBadgeClass(stage) {
+  return {
+    "Submitted": "Submitted",
+    "Document Verification": "doc",
+    "Section Review": "review",
+    "Sanction": "sanction",
+    "Disbursed": "disbursed",
+    "Rejected": "rejected",
+  }[stage] || "";
+}
+
+async function loadList() {
+  const wrap = document.getElementById("tableWrap");
+  const countTag = document.getElementById("countTag");
+  wrap.innerHTML = `<div class="loading">Loading applications...</div>`;
+  countTag.textContent = "";
+
+  const params = new URLSearchParams();
+  if (search.value.trim()) params.set("search", search.value.trim());
+  if (stageFilter.value) params.set("stage", stageFilter.value);
+  if (typeFilter.value) params.set("scholarship_type", typeFilter.value);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/applications?` + params.toString());
+    if (!res.ok) throw new Error("Server error " + res.status);
+    const data = await res.json();
+
+    countTag.textContent = `${data.count} application${data.count === 1 ? "" : "s"} shown`;
+
+    if (data.count === 0) {
+      wrap.innerHTML = `<div class="empty">No applications match this search/filter yet.</div>`;
+      return;
+    }
+
+    const rows = data.results.map(r => `
+      <tr>
+        <td>#${r.application_id}</td>
+        <td>${r.full_name}<br><span class="hint">${r.roll_no} &middot; ${r.department}</span></td>
+        <td>${r.scholarship_type}</td>
+        <td>Rs. ${r.amount_requested}${r.amount_sanctioned ? `<br><span class="hint">sanctioned Rs. ${r.amount_sanctioned}</span>` : ""}</td>
+        <td><span class="badge ${stageBadgeClass(r.current_stage)}">${r.current_stage}</span></td>
+        <td class="${r.days_in_current_stage >= 14 ? 'stuck' : ''}">${r.days_in_current_stage} day(s)</td>
+      </tr>`).join("");
+
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>ID</th><th>Student</th><th>Type</th><th>Amount</th><th>Stage</th><th>Time at stage</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="error-state">Could not load applications. Is the Flask backend running on ${API_BASE}?</div>`;
+  }
+}
+
+document.getElementById("applyBtn").addEventListener("click", loadList);
+document.getElementById("search").addEventListener("keydown", (e) => { if (e.key === "Enter") loadList(); });
+loadList();
+</script>
+</body>
+</html>

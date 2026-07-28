@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Check Status - Scholarship Tracker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <h1>Scholarship Section &middot; Application Tracker</h1>
+  <nav>
+    <a href="index.html">Register</a>
+    <a href="list.html">All Applications</a>
+    <a href="status.html">Check Status</a>
+  </nav>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Check your application status</h2>
+    <p class="hint">Enter your roll number to see exactly where your application has reached, right now.</p>
+    <div class="toolbar">
+      <div>
+        <label for="rollInput">Roll number</label>
+        <input id="rollInput" placeholder="e.g. 411724205053">
+      </div>
+      <div><button id="checkBtn">Check status</button></div>
+    </div>
+    <div id="result"></div>
+  </div>
+</main>
+
+<footer>Student Scholarship Application and Disbursement Tracker &middot; SIH 2026 Practical Assessment</footer>
+
+<script src="config.js"></script>
+<script>
+async function checkStatus() {
+  const roll = document.getElementById("rollInput").value.trim();
+  const result = document.getElementById("result");
+  if (!roll) { result.innerHTML = `<div class="msg error" style="display:block">Enter a roll number.</div>`; return; }
+
+  result.innerHTML = `<div class="loading">Checking...</div>`;
+  try {
+    const res = await fetch(`${API_BASE}/api/status/${encodeURIComponent(roll)}`);
+    const data = await res.json();
+    if (!res.ok) {
+      result.innerHTML = `<div class="empty">${data.message || "No application found for this roll number."}</div>`;
+      return;
+    }
+    result.innerHTML = data.applications.map(a => `
+      <div class="card" style="margin-top:12px;">
+        <strong>Application #${a.application_id}</strong> &middot; ${a.scholarship_type}<br>
+        Current stage: <span class="badge">${a.current_stage}</span> (here for ${a.days_in_current_stage} day(s))<br>
+        Amount requested: Rs. ${a.amount_requested}${a.amount_sanctioned ? ` &middot; Sanctioned: Rs. ${a.amount_sanctioned}` : ""}
+      </div>`).join("");
+  } catch (err) {
+    result.innerHTML = `<div class="error-state">Could not reach the server. Is the Flask backend running on ${API_BASE}?</div>`;
+  }
+}
+document.getElementById("checkBtn").addEventListener("click", checkStatus);
+document.getElementById("rollInput").addEventListener("keydown", (e) => { if (e.key === "Enter") checkStatus(); });
+</script>
+</body>
+</html>
